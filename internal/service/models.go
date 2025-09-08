@@ -58,3 +58,9 @@ type EventData struct {
 	StateBefore map[string]interface{} `json:"stateBefore,omitempty"`
 	StateAfter  map[string]interface{} `json:"stateAfter,omitempty"`
 }
+
+type PaginationInfo struct {
+	Count  int `json:"count"`
+	Total  int `json:"total"`
+	Offset int `json:"offset"`
+}
