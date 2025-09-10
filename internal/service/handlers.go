@@ -4,11 +4,13 @@ import (
 	"encoding/json"
 	"net/http"
 	"time"
+
+	"github.com/bmcdonald3/openchami-inventory-service/pkg/models"
 )
 
 // --- Reusable Mock Data ---
 
-var mockDevice1 = Device{
+var mockDevice1 = models.Device{
 	ID:                "c3d4e5f6-a1b2-4c1d-8e9f-0c1d2e3f4a5b",
 	Name:              "Compute Node 01",
 	Hostname:          strPtr("c0-0c0s1n0.local"),
