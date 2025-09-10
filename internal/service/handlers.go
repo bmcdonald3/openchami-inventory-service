@@ -3,186 +3,143 @@ package service
 import (
 	"encoding/json"
 	"net/http"
-	"time"
 
 	"github.com/bmcdonald3/openchami-inventory-service/pkg/models"
+	"github.com/go-chi/chi/v5"
 )
 
-// --- Reusable Mock Data ---
+// --- Handlers ---
 
-var mockDevice1 = models.Device{
-	ID:                "c3d4e5f6-a1b2-4c1d-8e9f-0c1d2e3f4a5b",
-	Name:              "Compute Node 01",
-	Hostname:          strPtr("c0-0c0s1n0.local"),
-	ComponentType:     "Node",
-	Manufacturer:      "HPE",
-	PartNumber:        "NODE-EX235A",
-	SerialNumber:      "NODESN001",
-	CurrentLocationID: strPtr("x3000c7s1b0n0"),
-	Status:            "active",
-	Properties: map[string]interface{}{
-		"nid": 1001,
-	},
-	CreatedAt: time.Now().Add(-24 * time.Hour),
-	UpdatedAt: timePtr(time.Now()),
+func (s *Server) listDevicesHandler(w http.ResponseWriter, r *http.Request) {
+	devices, err := s.DB.ListDevices()
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, models.ErrorResponse{Code: "internal_error", Message: err.Error()})
+		return
+	}
+
+	response := struct {
+		Items      []models.Device       `json:"items"`
+		Pagination models.PaginationInfo `json:"pagination"`
+	}{
+		Items: devices,
+		Pagination: models.PaginationInfo{
+			Count:  len(devices),
+			Total:  len(devices), // In-memory doesn't support total count easily
+			Offset: 0,
+		},
+	}
+	writeJSON(w, http.StatusOK, response)
 }
 
-var mockLocation1 = models.Location{
-	ID:               "x3000c7s1b0n0",
-	Name:             "Node Slot 1 in Chassis 7",
-	LocationType:     "node_slot",
-	ParentLocationID: strPtr("x3000c7"),
-	CurrentDeviceID:  strPtr("c3d4e5f6-a1b2-4c1d-8e9f-0c1d2e3f4a5b"),
-	Status:           "occupied",
-	CreatedAt:        time.Now().Add(-48 * time.Hour),
+func (s *Server) createDeviceHandler(w http.ResponseWriter, r *http.Request) {
+	var device models.Device
+	if err := json.NewDecoder(r.Body).Decode(&device); err != nil {
+		writeJSON(w, http.StatusBadRequest, models.ErrorResponse{Code: "bad_request", Message: "Invalid JSON format"})
+		return
+	}
+
+	createdDevice, err := s.DB.CreateDevice(&device)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, models.ErrorResponse{Code: "internal_error", Message: err.Error()})
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, createdDevice)
 }
 
-var mockEvent1 = models.Event{
-	ID:          "e1a2b3c4-d5e6-4f1a-8b9c-0a1b2c3d4e5f",
-	Source:      "/inventory/v1/api",
-	SpecVersion: "1.0",
-	Type:        "com.openchami.inventory.device.installed",
-	Subject:     strPtr(mockDevice1.ID),
-	Time:        time.Now(),
-	Data: models.EventData{
-		DeviceID:   strPtr(mockDevice1.ID),
-		LocationID: strPtr(mockLocation1.ID),
-		Actor:      strPtr("system"),
-		Comment:    strPtr("Device installed during initial discovery."),
-	},
+func (s *Server) getDeviceByIDHandler(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	device, err := s.DB.GetDeviceByID(id)
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, models.ErrorResponse{Code: "not_found", Message: err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, device)
 }
 
-// --- Handler Functions ---
+func (s *Server) getDeviceByNameHandler(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "name")
+	device, err := s.DB.GetDeviceByName(name)
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, models.ErrorResponse{Code: "not_found", Message: err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, device)
+}
 
+func (s *Server) updateDeviceHandler(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var device models.Device
+	if err := json.NewDecoder(r.Body).Decode(&device); err != nil {
+		writeJSON(w, http.StatusBadRequest, models.ErrorResponse{Code: "bad_request", Message: "Invalid JSON format"})
+		return
+	}
+
+	updatedDevice, err := s.DB.UpdateDevice(id, &device)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, models.ErrorResponse{Code: "internal_error", Message: err.Error()})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, updatedDevice)
+}
+
+func (s *Server) deleteDeviceHandler(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if err := s.DB.DeleteDevice(id); err != nil {
+		writeJSON(w, http.StatusNotFound, models.ErrorResponse{Code: "not_found", Message: err.Error()})
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// --- Mock/Placeholder Handlers for other resources ---
+
+func (s *Server) getDeviceHistoryHandler(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusNotImplemented, "Not Implemented")
+}
+func (s *Server) listLocationsHandler(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusNotImplemented, "Not Implemented")
+}
+func (s *Server) createLocationHandler(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusNotImplemented, "Not Implemented")
+}
+func (s *Server) getLocationByIDHandler(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusNotImplemented, "Not Implemented")
+}
+func (s *Server) getLocationByNameHandler(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusNotImplemented, "Not Implemented")
+}
+func (s *Server) updateLocationHandler(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusNotImplemented, "Not Implemented")
+}
+func (s *Server) deleteLocationHandler(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusNotImplemented, "Not Implemented")
+}
+func (s *Server) getLocationHistoryHandler(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusNotImplemented, "Not Implemented")
+}
+func (s *Server) getDeviceAtLocationHandler(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusNotImplemented, "Not Implemented")
+}
+func (s *Server) installDeviceHandler(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusNotImplemented, "Not Implemented")
+}
+func (s *Server) removeDeviceHandler(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusNotImplemented, "Not Implemented")
+}
+func (s *Server) listEventsHandler(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusNotImplemented, "Not Implemented")
+}
+func (s *Server) getEventByIDHandler(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusNotImplemented, "Not Implemented")
+}
+
+// --- Helper ---
 func writeJSON(w http.ResponseWriter, statusCode int, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
 	if data != nil {
 		json.NewEncoder(w).Encode(data)
 	}
-}
-
-func strPtr(s string) *string        { return &s }
-func timePtr(t time.Time) *time.Time { return &t }
-
-// --- Device Handlers ---
-
-func getDevicesHandler(w http.ResponseWriter, r *http.Request) {
-	response := struct {
-		Items      []models.Device       `json:"items"`
-		Pagination models.PaginationInfo `json:"pagination"`
-	}{
-		Items: []models.Device{mockDevice1},
-		Pagination: models.PaginationInfo{
-			Count:  1,
-			Total:  1,
-			Offset: 0,
-		},
-	}
-	writeJSON(w, http.StatusOK, response)
-}
-
-func createDeviceHandler(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusCreated, mockDevice1)
-}
-
-func getDeviceByIdHandler(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, mockDevice1)
-}
-
-func getDeviceByNameHandler(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, mockDevice1)
-}
-
-func updateDeviceHandler(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, mockDevice1)
-}
-
-func deleteDeviceHandler(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusNoContent)
-}
-
-func getDeviceHistoryHandler(w http.ResponseWriter, r *http.Request) {
-	response := struct {
-		Items      []models.Event        `json:"items"`
-		Pagination models.PaginationInfo `json:"pagination"`
-	}{
-		Items: []models.Event{mockEvent1},
-		Pagination: models.PaginationInfo{
-			Count:  1,
-			Total:  1,
-			Offset: 0,
-		},
-	}
-	writeJSON(w, http.StatusOK, response)
-}
-
-// --- Location Handlers ---
-
-func getLocationsHandler(w http.ResponseWriter, r *http.Request) {
-	response := struct {
-		Items      []models.Location     `json:"items"`
-		Pagination models.PaginationInfo `json:"pagination"`
-	}{
-		Items: []models.Location{mockLocation1},
-		Pagination: models.PaginationInfo{
-			Count:  1,
-			Total:  1,
-			Offset: 0,
-		},
-	}
-	writeJSON(w, http.StatusOK, response)
-}
-
-func createLocationHandler(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusCreated, mockLocation1)
-}
-
-func getLocationByIdHandler(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, mockLocation1)
-}
-
-func getLocationByNameHandler(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, mockLocation1)
-}
-
-func updateLocationHandler(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, mockLocation1)
-}
-
-func deleteLocationHandler(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusNoContent)
-}
-
-func getLocationHistoryHandler(w http.ResponseWriter, r *http.Request) {
-	getDeviceHistoryHandler(w, r)
-}
-
-func getDeviceAtLocationHandler(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, mockDevice1)
-}
-
-func installDeviceHandler(w http.ResponseWriter, r *http.Request) {
-	response := struct {
-		Location models.Location `json:"location"`
-		Event    models.Event    `json:"event"`
-	}{
-		Location: mockLocation1,
-		Event:    mockEvent1,
-	}
-	writeJSON(w, http.StatusOK, response)
-}
-
-func removeDeviceHandler(w http.ResponseWriter, r *http.Request) {
-	installDeviceHandler(w, r)
-}
-
-// --- Event Handlers ---
-
-func getEventsHandler(w http.ResponseWriter, r *http.Request) {
-	getDeviceHistoryHandler(w, r)
-}
-
-func getEventByIdHandler(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, mockEvent1)
 }
