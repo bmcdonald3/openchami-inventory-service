@@ -2,6 +2,8 @@ package models
 
 import "time"
 
+// --- Core Models ---
+
 // Device represents a physical piece of hardware in the inventory.
 type Device struct {
 	ID                string                 `json:"id"`
@@ -59,8 +61,17 @@ type EventData struct {
 	StateAfter  map[string]interface{} `json:"stateAfter,omitempty"`
 }
 
+// --- Supporting Models ---
+
+// PaginationInfo provides metadata for paginated list responses.
 type PaginationInfo struct {
 	Count  int `json:"count"`
 	Total  int `json:"total"`
 	Offset int `json:"offset"`
+}
+
+// ErrorResponse is a standard format for API error responses.
+type ErrorResponse struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
 }
