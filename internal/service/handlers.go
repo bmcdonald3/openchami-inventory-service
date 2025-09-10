@@ -27,7 +27,7 @@ var mockDevice1 = models.Device{
 	UpdatedAt: timePtr(time.Now()),
 }
 
-var mockLocation1 = Location{
+var mockLocation1 = models.Location{
 	ID:               "x3000c7s1b0n0",
 	Name:             "Node Slot 1 in Chassis 7",
 	LocationType:     "node_slot",
@@ -37,14 +37,14 @@ var mockLocation1 = Location{
 	CreatedAt:        time.Now().Add(-48 * time.Hour),
 }
 
-var mockEvent1 = Event{
+var mockEvent1 = models.Event{
 	ID:          "e1a2b3c4-d5e6-4f1a-8b9c-0a1b2c3d4e5f",
 	Source:      "/inventory/v1/api",
 	SpecVersion: "1.0",
 	Type:        "com.openchami.inventory.device.installed",
 	Subject:     strPtr(mockDevice1.ID),
 	Time:        time.Now(),
-	Data: EventData{
+	Data: models.EventData{
 		DeviceID:   strPtr(mockDevice1.ID),
 		LocationID: strPtr(mockLocation1.ID),
 		Actor:      strPtr("system"),
@@ -69,11 +69,11 @@ func timePtr(t time.Time) *time.Time { return &t }
 
 func getDevicesHandler(w http.ResponseWriter, r *http.Request) {
 	response := struct {
-		Items      []Device       `json:"items"`
-		Pagination PaginationInfo `json:"pagination"`
+		Items      []models.Device       `json:"items"`
+		Pagination models.PaginationInfo `json:"pagination"`
 	}{
-		Items: []Device{mockDevice1},
-		Pagination: PaginationInfo{
+		Items: []models.Device{mockDevice1},
+		Pagination: models.PaginationInfo{
 			Count:  1,
 			Total:  1,
 			Offset: 0,
@@ -104,11 +104,11 @@ func deleteDeviceHandler(w http.ResponseWriter, r *http.Request) {
 
 func getDeviceHistoryHandler(w http.ResponseWriter, r *http.Request) {
 	response := struct {
-		Items      []Event        `json:"items"`
-		Pagination PaginationInfo `json:"pagination"`
+		Items      []models.Event        `json:"items"`
+		Pagination models.PaginationInfo `json:"pagination"`
 	}{
-		Items: []Event{mockEvent1},
-		Pagination: PaginationInfo{
+		Items: []models.Event{mockEvent1},
+		Pagination: models.PaginationInfo{
 			Count:  1,
 			Total:  1,
 			Offset: 0,
@@ -121,11 +121,11 @@ func getDeviceHistoryHandler(w http.ResponseWriter, r *http.Request) {
 
 func getLocationsHandler(w http.ResponseWriter, r *http.Request) {
 	response := struct {
-		Items      []Location     `json:"items"`
-		Pagination PaginationInfo `json:"pagination"`
+		Items      []models.Location     `json:"items"`
+		Pagination models.PaginationInfo `json:"pagination"`
 	}{
-		Items: []Location{mockLocation1},
-		Pagination: PaginationInfo{
+		Items: []models.Location{mockLocation1},
+		Pagination: models.PaginationInfo{
 			Count:  1,
 			Total:  1,
 			Offset: 0,
@@ -164,8 +164,8 @@ func getDeviceAtLocationHandler(w http.ResponseWriter, r *http.Request) {
 
 func installDeviceHandler(w http.ResponseWriter, r *http.Request) {
 	response := struct {
-		Location Location `json:"location"`
-		Event    Event    `json:"event"`
+		Location models.Location `json:"location"`
+		Event    models.Event    `json:"event"`
 	}{
 		Location: mockLocation1,
 		Event:    mockEvent1,
