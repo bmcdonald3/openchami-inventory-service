@@ -71,13 +71,15 @@ func (s *MemoryStore) ListDevices() ([]models.Device, error) {
 func (s *MemoryStore) UpdateDevice(id string, device *models.Device) (*models.Device, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	_, exists := s.devices[id]
+	existingDevice, exists := s.devices[id]
 	if !exists {
 		return nil, fmt.Errorf("device with ID %s not found", id)
 	}
+	// Preserve original creation time and ID
+	device.CreatedAt = existingDevice.CreatedAt
+	device.ID = id
 	now := time.Now()
 	device.UpdatedAt = &now
-	device.ID = id // Ensure ID is not changed
 	s.devices[id] = device
 	return device, nil
 }
@@ -139,13 +141,15 @@ func (s *MemoryStore) ListLocations() ([]models.Location, error) {
 func (s *MemoryStore) UpdateLocation(id string, location *models.Location) (*models.Location, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	_, exists := s.locations[id]
+	existingLocation, exists := s.locations[id]
 	if !exists {
 		return nil, fmt.Errorf("location with ID %s not found", id)
 	}
+	// Preserve original creation time and ID
+	location.CreatedAt = existingLocation.CreatedAt
+	location.ID = id
 	now := time.Now()
 	location.UpdatedAt = &now
-	location.ID = id // Ensure ID is not changed
 	s.locations[id] = location
 	return location, nil
 }
