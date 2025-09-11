@@ -13,14 +13,18 @@ import (
 	"github.com/google/uuid"
 )
 
-// setupTestServer initializes a server with a new in-memory datastore for testing.
 func setupTestServer() *chi.Mux {
 	db := datastore.NewMemoryStore()
 	server := NewServer(db)
-	router := NewRouter(server)
+
+	router := chi.NewRouter()
+	router.Post("/inventory/v1/devices", server.createDeviceHandler)
+	router.Get("/inventory/v1/devices", server.listDevicesHandler)
+	router.Get("/inventory/v1/devices/{id}", server.getDeviceByIDHandler)
+	router.Delete("/inventory/v1/devices/{id}", server.deleteDeviceHandler)
+
 	return router
 }
-
 func TestCreateDeviceHandler(t *testing.T) {
 	router := setupTestServer()
 
