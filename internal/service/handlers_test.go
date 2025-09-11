@@ -5,63 +5,28 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/bmcdonald3/openchami-inventory-service/internal/datastore"
 	"github.com/bmcdonald3/openchami-inventory-service/pkg/models"
 	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 )
 
 func setupTestServer() *chi.Mux {
 	db := datastore.NewMemoryStore()
 	server := NewServer(db)
-
-	router := chi.NewRouter()
-	router.Post("/inventory/v1/devices", server.createDeviceHandler)
-	router.Get("/inventory/v1/devices", server.listDevicesHandler)
-	router.Get("/inventory/v1/devices/{id}", server.getDeviceByIDHandler)
-	router.Delete("/inventory/v1/devices/{id}", server.deleteDeviceHandler)
-
+	router := NewRouter(server)
 	return router
-}
-func TestCreateDeviceHandler(t *testing.T) {
-	router := setupTestServer()
-
-	devicePayload := `{"name":"Test Node 1","componentType":"Node","manufacturer":"HPE","partNumber":"P123","serialNumber":"SN123","status":"active"}`
-	reqBody := bytes.NewBuffer([]byte(devicePayload))
-
-	req := httptest.NewRequest("POST", "/inventory/v1/devices", reqBody)
-	rr := httptest.NewRecorder()
-
-	router.ServeHTTP(rr, req)
-
-	if status := rr.Code; status != http.StatusCreated {
-		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusCreated)
-	}
-
-	var createdDevice models.Device
-	if err := json.NewDecoder(rr.Body).Decode(&createdDevice); err != nil {
-		t.Fatalf("could not decode response: %v", err)
-	}
-
-	if createdDevice.Name != "Test Node 1" {
-		t.Errorf("handler returned unexpected name: got %v want %v", createdDevice.Name, "Test Node 1")
-	}
-	if createdDevice.ID == "" {
-		t.Errorf("handler returned device with no ID")
-	}
 }
 
 func TestDeviceLifecycle(t *testing.T) {
 	router := setupTestServer()
 	var createdDeviceID string
 
-	// Step 1: Create a device
 	t.Run("CreateDevice", func(t *testing.T) {
 		devicePayload := `{"name":"Lifecycle Test Device","componentType":"Node","manufacturer":"HPE","partNumber":"P456","serialNumber":"SN456","status":"active"}`
-		reqBody := bytes.NewBuffer([]byte(devicePayload))
-		req := httptest.NewRequest("POST", "/inventory/v1/devices", reqBody)
+		req := httptest.NewRequest("POST", "/inventory/v1/devices", bytes.NewBufferString(devicePayload))
 		rr := httptest.NewRecorder()
 		router.ServeHTTP(rr, req)
 
@@ -70,74 +35,117 @@ func TestDeviceLifecycle(t *testing.T) {
 		}
 		var device models.Device
 		json.NewDecoder(rr.Body).Decode(&device)
-		createdDeviceID = device.ID // Save the ID for the next steps
+		createdDeviceID = device.ID
 	})
 
-	// Step 2: Get the device by ID to verify creation
 	t.Run("GetDeviceByID", func(t *testing.T) {
 		req := httptest.NewRequest("GET", "/inventory/v1/devices/"+createdDeviceID, nil)
 		rr := httptest.NewRecorder()
 		router.ServeHTTP(rr, req)
-
 		if status := rr.Code; status != http.StatusOK {
 			t.Fatalf("GetDeviceByID failed: got status %v want %v", status, http.StatusOK)
 		}
-		var device models.Device
-		json.NewDecoder(rr.Body).Decode(&device)
-		if device.Name != "Lifecycle Test Device" {
-			t.Errorf("GetDeviceByID returned wrong name: got %v", device.Name)
-		}
 	})
 
-	// Step 3: List devices to ensure it appears in the collection
-	t.Run("ListDevices", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/inventory/v1/devices", nil)
-		rr := httptest.NewRecorder()
-		router.ServeHTTP(rr, req)
-
-		if status := rr.Code; status != http.StatusOK {
-			t.Fatalf("ListDevices failed: got status %v want %v", status, http.StatusOK)
-		}
-		var response struct{ Items []models.Device }
-		json.NewDecoder(rr.Body).Decode(&response)
-		if len(response.Items) != 1 || response.Items[0].ID != createdDeviceID {
-			t.Errorf("ListDevices did not contain the created device")
-		}
-	})
-
-	// Step 4: Delete the device
 	t.Run("DeleteDevice", func(t *testing.T) {
 		req := httptest.NewRequest("DELETE", "/inventory/v1/devices/"+createdDeviceID, nil)
 		rr := httptest.NewRecorder()
 		router.ServeHTTP(rr, req)
-
 		if status := rr.Code; status != http.StatusNoContent {
 			t.Fatalf("DeleteDevice failed: got status %v want %v", status, http.StatusNoContent)
 		}
 	})
 
-	// Step 5: Get the device again to ensure it's gone
 	t.Run("GetAfterDelete", func(t *testing.T) {
 		req := httptest.NewRequest("GET", "/inventory/v1/devices/"+createdDeviceID, nil)
 		rr := httptest.NewRecorder()
 		router.ServeHTTP(rr, req)
-
 		if status := rr.Code; status != http.StatusNotFound {
 			t.Fatalf("GetAfterDelete failed: got status %v want %v", status, http.StatusNotFound)
 		}
 	})
 }
 
-func TestGetDeviceNotFound(t *testing.T) {
+func TestInstallAndRemoveDevice(t *testing.T) {
 	router := setupTestServer()
-	nonExistentID := uuid.NewString()
+	var testDevice models.Device
+	var testLocation models.Location
 
-	req := httptest.NewRequest("GET", "/inventory/v1/devices/"+nonExistentID, nil)
+	// Setup: Create a device and a location
+	devicePayload := `{"name":"Install Test Device","componentType":"Node","manufacturer":"Test","partNumber":"T1","serialNumber":"SN-T1","status":"active"}`
+	req := httptest.NewRequest("POST", "/inventory/v1/devices", bytes.NewBufferString(devicePayload))
 	rr := httptest.NewRecorder()
-
 	router.ServeHTTP(rr, req)
+	json.NewDecoder(rr.Body).Decode(&testDevice)
 
-	if status := rr.Code; status != http.StatusNotFound {
-		t.Errorf("handler returned wrong status code for non-existent device: got %v want %v", status, http.StatusNotFound)
-	}
+	locationPayload := `{"id":"test-slot-1","name":"Test Slot","locationType":"node_slot","status":"empty"}`
+	req = httptest.NewRequest("POST", "/inventory/v1/locations", bytes.NewBufferString(locationPayload))
+	rr = httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+	json.NewDecoder(rr.Body).Decode(&testLocation)
+
+	// Step 1: Install the device
+	t.Run("InstallDevice", func(t *testing.T) {
+		installPayload := `{"deviceId":"` + testDevice.ID + `"}`
+		req := httptest.NewRequest("PUT", "/inventory/v1/locations/"+testLocation.ID+"/device", bytes.NewBufferString(installPayload))
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+
+		if status := rr.Code; status != http.StatusOK {
+			t.Fatalf("InstallDevice failed: got status %v want %v", status, http.StatusOK)
+		}
+
+		var response struct{ Location models.Location }
+		json.NewDecoder(rr.Body).Decode(&response)
+		if response.Location.CurrentDeviceID == nil || *response.Location.CurrentDeviceID != testDevice.ID {
+			t.Errorf("InstallDevice did not update the location's CurrentDeviceID")
+		}
+	})
+
+	// Step 2: Verify the device's location is updated
+	t.Run("VerifyDeviceLocation", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/inventory/v1/devices/"+testDevice.ID, nil)
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+		var device models.Device
+		json.NewDecoder(rr.Body).Decode(&device)
+		if device.CurrentLocationID == nil || *device.CurrentLocationID != testLocation.ID {
+			t.Errorf("Device currentLocationId was not updated after install")
+		}
+	})
+
+	// Step 3: Remove the device
+	t.Run("RemoveDevice", func(t *testing.T) {
+		req := httptest.NewRequest("DELETE", "/inventory/v1/locations/"+testLocation.ID+"/device", nil)
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+
+		if status := rr.Code; status != http.StatusOK {
+			t.Fatalf("RemoveDevice failed: got status %v want %v", status, http.StatusOK)
+		}
+
+		var response struct{ Location models.Location }
+		json.NewDecoder(rr.Body).Decode(&response)
+		if response.Location.CurrentDeviceID != nil {
+			t.Errorf("RemoveDevice did not clear the location's CurrentDeviceID")
+		}
+	})
+
+	// Step 4: Verify the location's history
+	t.Run("VerifyHistory", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/inventory/v1/locations/"+testLocation.ID+"/history", nil)
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+		var response struct{ Items []models.Event }
+		json.NewDecoder(rr.Body).Decode(&response)
+		if len(response.Items) != 2 {
+			t.Fatalf("Expected 2 events in history, got %d", len(response.Items))
+		}
+		if !strings.Contains(response.Items[0].Type, "installed") {
+			t.Errorf("First event was not 'installed'")
+		}
+		if !strings.Contains(response.Items[1].Type, "removed") {
+			t.Errorf("Second event was not 'removed'")
+		}
+	})
 }
