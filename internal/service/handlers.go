@@ -286,8 +286,9 @@ func (s *Server) installDeviceHandler(w http.ResponseWriter, r *http.Request) {
 	s.DB.UpdateLocation(location.ID, location)
 	s.DB.UpdateDevice(device.ID, device)
 	installEvent := &models.Event{
-		Source: "/inventory/v1/api",
-		Type:   "com.openchami.inventory.device.installed",
+		Source:      "/inventory/v1/api",
+		SpecVersion: "1.0",
+		Type:        "com.openchami.inventory.device.installed",
 		Data: models.EventData{
 			DeviceID:   &device.ID,
 			LocationID: &location.ID,
@@ -327,8 +328,9 @@ func (s *Server) removeDeviceHandler(w http.ResponseWriter, r *http.Request) {
 	s.DB.UpdateLocation(location.ID, location)
 	s.DB.UpdateDevice(device.ID, device)
 	removeEvent := &models.Event{
-		Source: "/inventory/v1/api",
-		Type:   "com.openchami.inventory.device.removed",
+		Source:      "/inventory/v1/api",
+		SpecVersion: "1.0",
+		Type:        "com.openchami.inventory.device.removed",
 		Data: models.EventData{
 			DeviceID:   &device.ID,
 			LocationID: &location.ID,
