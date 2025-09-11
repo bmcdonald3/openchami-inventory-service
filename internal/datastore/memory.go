@@ -31,14 +31,8 @@ func NewMemoryStore() *MemoryStore {
 func (s *MemoryStore) CreateDevice(device *models.Device) (*models.Device, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-
-	// Set server-managed fields
 	device.ID = uuid.NewString()
 	device.CreatedAt = time.Now()
-
-	if _, exists := s.devices[device.ID]; exists {
-		return nil, fmt.Errorf("device with ID %s already exists", device.ID)
-	}
 	s.devices[device.ID] = device
 	return device, nil
 }
@@ -46,7 +40,6 @@ func (s *MemoryStore) CreateDevice(device *models.Device) (*models.Device, error
 func (s *MemoryStore) GetDeviceByID(id string) (*models.Device, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-
 	device, exists := s.devices[id]
 	if !exists {
 		return nil, fmt.Errorf("device with ID %s not found", id)
@@ -57,7 +50,6 @@ func (s *MemoryStore) GetDeviceByID(id string) (*models.Device, error) {
 func (s *MemoryStore) GetDeviceByName(name string) (*models.Device, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-
 	for _, device := range s.devices {
 		if device.Name == name {
 			return device, nil
@@ -69,7 +61,6 @@ func (s *MemoryStore) GetDeviceByName(name string) (*models.Device, error) {
 func (s *MemoryStore) ListDevices() ([]models.Device, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-
 	allDevices := make([]models.Device, 0, len(s.devices))
 	for _, device := range s.devices {
 		allDevices = append(allDevices, *device)
@@ -80,27 +71,20 @@ func (s *MemoryStore) ListDevices() ([]models.Device, error) {
 func (s *MemoryStore) UpdateDevice(id string, device *models.Device) (*models.Device, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-
-	existingDevice, exists := s.devices[id]
+	_, exists := s.devices[id]
 	if !exists {
 		return nil, fmt.Errorf("device with ID %s not found", id)
 	}
-
-	// Update fields
-	existingDevice.Name = device.Name
-	existingDevice.Hostname = device.Hostname
-	// ... update other fields as needed
 	now := time.Now()
-	existingDevice.UpdatedAt = &now
-
-	s.devices[id] = existingDevice
-	return existingDevice, nil
+	device.UpdatedAt = &now
+	device.ID = id // Ensure ID is not changed
+	s.devices[id] = device
+	return device, nil
 }
 
 func (s *MemoryStore) DeleteDevice(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-
 	if _, exists := s.devices[id]; !exists {
 		return fmt.Errorf("device with ID %s not found", id)
 	}
@@ -108,35 +92,125 @@ func (s *MemoryStore) DeleteDevice(id string) error {
 	return nil
 }
 
-// --- Location Methods (Not Implemented) ---
-func (s *MemoryStore) CreateLocation(location *models.Location) (*models.Location, error) {
-	return nil, fmt.Errorf("not implemented")
-}
-func (s *MemoryStore) GetLocationByID(id string) (*models.Location, error) {
-	return nil, fmt.Errorf("not implemented")
-}
-func (s *MemoryStore) GetLocationByName(name string) (*models.Location, error) {
-	return nil, fmt.Errorf("not implemented")
-}
-func (s *MemoryStore) ListLocations() ([]models.Location, error) {
-	return nil, fmt.Errorf("not implemented")
-}
-func (s *MemoryStore) UpdateLocation(id string, location *models.Location) (*models.Location, error) {
-	return nil, fmt.Errorf("not implemented")
-}
-func (s *MemoryStore) DeleteLocation(id string) error { return fmt.Errorf("not implemented") }
+// --- Location Methods ---
 
-// --- Event Methods (Not Implemented) ---
+func (s *MemoryStore) CreateLocation(location *models.Location) (*models.Location, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	location.CreatedAt = time.Now()
+	if _, exists := s.locations[location.ID]; exists {
+		return nil, fmt.Errorf("location with ID %s already exists", location.ID)
+	}
+	s.locations[location.ID] = location
+	return location, nil
+}
+
+func (s *MemoryStore) GetLocationByID(id string) (*models.Location, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	location, exists := s.locations[id]
+	if !exists {
+		return nil, fmt.Errorf("location with ID %s not found", id)
+	}
+	return location, nil
+}
+
+func (s *MemoryStore) GetLocationByName(name string) (*models.Location, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, location := range s.locations {
+		if location.Name == name {
+			return location, nil
+		}
+	}
+	return nil, fmt.Errorf("location with name '%s' not found", name)
+}
+
+func (s *MemoryStore) ListLocations() ([]models.Location, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	allLocations := make([]models.Location, 0, len(s.locations))
+	for _, location := range s.locations {
+		allLocations = append(allLocations, *location)
+	}
+	return allLocations, nil
+}
+
+func (s *MemoryStore) UpdateLocation(id string, location *models.Location) (*models.Location, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, exists := s.locations[id]
+	if !exists {
+		return nil, fmt.Errorf("location with ID %s not found", id)
+	}
+	now := time.Now()
+	location.UpdatedAt = &now
+	location.ID = id // Ensure ID is not changed
+	s.locations[id] = location
+	return location, nil
+}
+
+func (s *MemoryStore) DeleteLocation(id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, exists := s.locations[id]; !exists {
+		return fmt.Errorf("location with ID %s not found", id)
+	}
+	delete(s.locations, id)
+	return nil
+}
+
+// --- Event Methods ---
+
 func (s *MemoryStore) CreateEvent(event *models.Event) (*models.Event, error) {
-	return nil, fmt.Errorf("not implemented")
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	event.ID = uuid.NewString()
+	event.Time = time.Now()
+	s.events[event.ID] = event
+	return event, nil
 }
+
 func (s *MemoryStore) GetEventByID(id string) (*models.Event, error) {
-	return nil, fmt.Errorf("not implemented")
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	event, exists := s.events[id]
+	if !exists {
+		return nil, fmt.Errorf("event with ID %s not found", id)
+	}
+	return event, nil
 }
-func (s *MemoryStore) ListEvents() ([]models.Event, error) { return nil, fmt.Errorf("not implemented") }
+
+func (s *MemoryStore) ListEvents() ([]models.Event, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	allEvents := make([]models.Event, 0, len(s.events))
+	for _, event := range s.events {
+		allEvents = append(allEvents, *event)
+	}
+	return allEvents, nil
+}
+
 func (s *MemoryStore) ListEventsByDeviceID(deviceID string) ([]models.Event, error) {
-	return nil, fmt.Errorf("not implemented")
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var deviceEvents []models.Event
+	for _, event := range s.events {
+		if event.Data.DeviceID != nil && *event.Data.DeviceID == deviceID {
+			deviceEvents = append(deviceEvents, *event)
+		}
+	}
+	return deviceEvents, nil
 }
+
 func (s *MemoryStore) ListEventsByLocationID(locationID string) ([]models.Event, error) {
-	return nil, fmt.Errorf("not implemented")
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var locationEvents []models.Event
+	for _, event := range s.events {
+		if event.Data.LocationID != nil && *event.Data.LocationID == locationID {
+			locationEvents = append(locationEvents, *event)
+		}
+	}
+	return locationEvents, nil
 }
