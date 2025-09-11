@@ -17,6 +17,10 @@ func writeJSON(w http.ResponseWriter, statusCode int, data interface{}) {
 	}
 }
 
+func strPtr(s string) *string {
+	return &s
+}
+
 // --- Device Handlers ---
 
 func (s *Server) listDevicesHandler(w http.ResponseWriter, r *http.Request) {
@@ -253,9 +257,104 @@ func (s *Server) getDeviceAtLocationHandler(w http.ResponseWriter, r *http.Reque
 }
 
 func (s *Server) installDeviceHandler(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusNotImplemented, "Not Implemented")
+	locationId := chi.URLParam(r, "id")
+
+	var body struct {
+		DeviceID string `json:"deviceId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSON(w, http.StatusBadRequest, models.ErrorResponse{Code: "bad_request", Message: "Invalid JSON format"})
+		return
+	}
+
+	// 1. Get the location
+	location, err := s.DB.GetLocationByID(locationId)
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, models.ErrorResponse{Code: "not_found", Message: "Location not found"})
+		return
+	}
+
+	// 2. Get the device
+	device, err := s.DB.GetDeviceByID(body.DeviceID)
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, models.ErrorResponse{Code: "not_found", Message: "Device not found"})
+		return
+	}
+
+	// 3. Update the objects
+	location.CurrentDeviceID = &device.ID
+	device.CurrentLocationID = &location.ID
+	s.DB.UpdateLocation(location.ID, location)
+	s.DB.UpdateDevice(device.ID, device)
+
+	// 4. Create an event
+	installEvent := &models.Event{
+		Source: "/inventory/v1/api",
+		Type:   "com.openchami.inventory.device.installed",
+		Data: models.EventData{
+			DeviceID:   &device.ID,
+			LocationID: &location.ID,
+			Actor:      strPtr("api-user"),
+		},
+	}
+	createdEvent, _ := s.DB.CreateEvent(installEvent)
+
+	response := struct {
+		Location models.Location `json:"location"`
+		Event    models.Event    `json:"event"`
+	}{
+		Location: *location,
+		Event:    *createdEvent,
+	}
+	writeJSON(w, http.StatusOK, response)
 }
 
 func (s *Server) removeDeviceHandler(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusNotImplemented, "Not Implemented")
+	locationId := chi.URLParam(r, "id")
+
+	// 1. Get the location
+	location, err := s.DB.GetLocationByID(locationId)
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, models.ErrorResponse{Code: "not_found", Message: "Location not found"})
+		return
+	}
+	if location.CurrentDeviceID == nil {
+		writeJSON(w, http.StatusBadRequest, models.ErrorResponse{Code: "bad_request", Message: "Location is already empty"})
+		return
+	}
+
+	// 2. Get the device
+	device, err := s.DB.GetDeviceByID(*location.CurrentDeviceID)
+	if err != nil {
+		// This indicates a data consistency issue
+		writeJSON(w, http.StatusInternalServerError, models.ErrorResponse{Code: "internal_error", Message: "Could not find device associated with this location"})
+		return
+	}
+
+	// 3. Update the objects
+	location.CurrentDeviceID = nil
+	device.CurrentLocationID = nil
+	s.DB.UpdateLocation(location.ID, location)
+	s.DB.UpdateDevice(device.ID, device)
+
+	// 4. Create an event
+	removeEvent := &models.Event{
+		Source: "/inventory/v1/api",
+		Type:   "com.openchami.inventory.device.removed",
+		Data: models.EventData{
+			DeviceID:   &device.ID,
+			LocationID: &location.ID,
+			Actor:      strPtr("api-user"),
+		},
+	}
+	createdEvent, _ := s.DB.CreateEvent(removeEvent)
+
+	response := struct {
+		Location models.Location `json:"location"`
+		Event    models.Event    `json:"event"`
+	}{
+		Location: *location,
+		Event:    *createdEvent,
+	}
+	writeJSON(w, http.StatusOK, response)
 }
