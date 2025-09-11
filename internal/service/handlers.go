@@ -281,6 +281,7 @@ func (s *Server) installDeviceHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	location.CurrentDeviceID = &device.ID
+	location.Status = "occupied"
 	device.CurrentLocationID = &location.ID
 	s.DB.UpdateLocation(location.ID, location)
 	s.DB.UpdateDevice(device.ID, device)
@@ -321,6 +322,7 @@ func (s *Server) removeDeviceHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	location.CurrentDeviceID = nil
+	location.Status = "empty"
 	device.CurrentLocationID = nil
 	s.DB.UpdateLocation(location.ID, location)
 	s.DB.UpdateDevice(device.ID, device)
